@@ -9,8 +9,8 @@ from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Textbook AI", page_icon="📚")
-st.title("📚 Chat with your Textbook")
+st.set_page_config(page_title="Geneva Centre for Autism AI", page_icon="📚")
+st.title("📚 Chat with the Geneva Centre")
 
 # NEW (Cloud Safe)
 # Streamlit will automatically load this from its secret vault
