@@ -10,12 +10,6 @@ from langchain_classic.chains.combine_documents import create_stuff_documents_ch
 st.set_page_config(page_title="KAI: Kind AI", page_icon="kai_logo.png", layout="wide")
 
 # --- BRANDING & CSS ---
-# Brand Colors:
-# Primary Blue (Button/Logo): #8ABCCE
-# Dark Text Blue: #4A7A94
-# Light Background: #FFFFFF
-# Sidebar/Chat BG: #F7FBFC
-
 st.markdown("""
     <style>
     /* 1. FORCE LIGHT THEME & BACKGROUNDS */
@@ -29,7 +23,7 @@ st.markdown("""
     }
     div[data-testid="stBottom"] {
         background-color: #FFFFFF !important;
-        border-top: 1px solid #F0F6F8; /* Subtle separation line */
+        border-top: 1px solid #F0F6F8;
     }
     
     /* 3. TEXT STYLING */
@@ -62,28 +56,22 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
     
-    /* 6. CHAT INPUT STYLING (The Fix) */
+    /* 6. CHAT INPUT STYLING */
     .stChatInput {
         padding-bottom: 15px;
     }
-    
-    /* The Input Box Itself */
     .stChatInput textarea {
-        background-color: #F0F6F8 !important; /* Slightly darker than white for contrast */
+        background-color: #F0F6F8 !important;
         color: #4A7A94 !important;
-        border: 1px solid #E1EFFF !important; /* Soft border */
-        border-radius: 20px !important; /* Perfect Pill Shape */
-        padding: 10px 15px; /* Comfortable padding */
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.03); /* Tiny inner shadow */
+        border: 1px solid #E1EFFF !important;
+        border-radius: 20px !important;
+        padding: 10px 15px;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
     }
-    
-    /* The Focus State (When you click inside) */
     .stChatInput textarea:focus {
         border-color: #8ABCCE !important;
-        box-shadow: 0 0 0 2px rgba(138, 188, 206, 0.25) !important; /* Soft Blue Glow */
+        box-shadow: 0 0 0 2px rgba(138, 188, 206, 0.25) !important;
     }
-    
-    /* The Send Button Icon (Inside the input) */
     .stChatInput button {
         color: #8ABCCE !important;
     }
@@ -100,7 +88,6 @@ st.markdown("""
         color: #2E5E74;
     }
     
-    /* Hide standard footer */
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
     </style>
@@ -109,9 +96,6 @@ st.markdown("""
 # 1. SETUP API KEY
 if "GOOGLE_API_KEY" in st.secrets:
     os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
-else:
-    # Fallback for local testing
-    pass
 
 # --- SESSION STATE ---
 if "intro_complete" not in st.session_state:
@@ -175,38 +159,4 @@ if not st.session_state.intro_complete:
         st.markdown("""
         <div class="kai-list">
             • <strong>Kind:</strong> A calm, non-judgmental presence.<br>
-            • <strong>Assistive:</strong> Focused on practical help.<br>
-            • <strong>Intelligent:</strong> Meaningful guidance.
-        </div>
-        """, unsafe_allow_html=True)
-        
-        st.write("") 
-        st.write("") 
-        
-        if st.button("Begin your journey", type="primary"):
-            st.session_state.intro_complete = True
-            st.rerun()
-
-# --- 4. ONBOARDING ---
-elif not st.session_state.onboarding_complete:
-    c1, c2, c3 = st.columns([1, 2, 1])
-    
-    with c2:
-        st.markdown("<h2 style='text-align: center;'>Getting started</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center;'>To help KAI guide you better, please select an option:</p>", unsafe_allow_html=True)
-        st.write("") 
-
-        if st.session_state.user_role is None:
-            b1, b2 = st.columns(2)
-            with b1:
-                if st.button("I am an Autistic Adult", use_container_width=True):
-                    st.session_state.user_role = "Autistic Adult"
-                    st.rerun()
-            with b2:
-                if st.button("I am a Caregiver", use_container_width=True):
-                    st.session_state.user_role = "Caregiver"
-                    st.rerun()
-        else:
-            role = st.session_state.user_role
-            if role == "Autistic Adult":
-                st.markdown("<h3 style='text-align: center;'>How old are you?</h3>
+            • <strong>
