@@ -4,7 +4,8 @@ import json
 import time
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder # <--- NEW IMPORT
+from langchain_core.messages import HumanMessage, AIMessage # <--- NEW IMPORT
 from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 
@@ -152,7 +153,7 @@ def load_rag_pipeline():
     retriever = vectorstore.as_retriever()
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
-    # --- UPDATED PROMPT: ADDED MATCHMAKER PROTOCOL ---
+    # --- PROMPT WITH MEMORY & INTERVIEW LOGIC ---
     system_prompt = (
         "You are KAI (Kind AI), a guide for everyday life. "
         "Your core philosophy:\n"
@@ -162,10 +163,10 @@ def load_rag_pipeline():
         "CONTEXT: You are speaking to a {role} located in {location}. "
         "The individual is {age} years old.\n\n"
         "--- SPECIAL MODE: MATCHMAKING & CONNECTION ---\n"
-        "IF the user asks to 'find friends' or 'connect with caregivers':\n"
+        "IF the user asks to 'find friends' or 'connect with caregivers', OR if the chat history shows we are currently building a profile:\n"
         "1. Adopt a warm, welcoming 'Matchmaker' persona.\n"
-        "2. Do not say you cannot do it. Instead, say you will help build their profile to find the best match.\n"
-        "3. Start an interview process. Ask ONE question at a time. Do not overwhelm them.\n"
+        "2. Continue the interview process naturally. Ask ONE question at a time.\n"
+        "3. Acknowledge their previous answer before asking the next one.\n"
         "4. Good questions for Autistic Adults: Special interests/Hobbies? Preferred communication (Text vs Voice)? Sensory needs for meetups?\n"
         "5. Good questions for Caregivers: Age of person supported? Main challenges? Looking for emotional support or practical tips?\n\n"
         "--- INSTRUCTIONS FOR RESPONSE STYLE ---\n"
@@ -182,7 +183,14 @@ def load_rag_pipeline():
         "RETRIEVED KNOWLEDGE:\n"
         "{context}"
     )
-    prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])
+    
+    # We add a placeholder for chat history so the AI remembers the conversation
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        MessagesPlaceholder(variable_name="chat_history"),
+        ("human", "{input}"),
+    ])
+    
     question_answer_chain = create_stuff_documents_chain(llm, prompt)
     rag_chain = create_retrieval_chain(retriever, question_answer_chain)
     return rag_chain
@@ -211,15 +219,26 @@ def get_locations_from_file():
 
 # --- HELPER: GENERATE RESPONSE & PARSE SUGGESTIONS ---
 def generate_response(prompt_text):
+    # 1. Add User Message
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     st.session_state.current_suggestions = []
     
+    # 2. Build Chat History for Memory
+    # We convert Streamlit's JSON history into LangChain Message Objects
+    chat_history = []
+    for msg in st.session_state.messages[:-1]: # Exclude the just-added user message (handled by chain)
+        if msg["role"] == "user":
+            chat_history.append(HumanMessage(content=msg["content"]))
+        elif msg["role"] == "assistant":
+            chat_history.append(AIMessage(content=msg["content"]))
+
     if rag_chain:
         with st.chat_message("assistant"):
             with st.spinner("Thinking gently..."):
                 try:
                     response = rag_chain.invoke({
                         "input": prompt_text,
+                        "chat_history": chat_history, # Pass history here!
                         "role": st.session_state.user_role,
                         "location": st.session_state.user_location, 
                         "age": str(st.session_state.age_context)
@@ -345,15 +364,13 @@ else:
         st.info(f"**Role:** {st.session_state.user_role}\n\n**Loc:** {st.session_state.user_location}\n\n**Age:** {st.session_state.age_context}")
         st.write("")
         
-        # --- NEW CONNECTION BUTTON ---
+        # --- CONNECTION BUTTON ---
         if st.session_state.user_role == "Autistic Adult":
             connect_label = "Find friends"
         else:
             connect_label = "Connect with other caregivers"
             
-        # We use a primary button style for this positive action
         if st.button(connect_label, type="primary"):
-            # Trigger the matchmaking flow
             generate_response(f"I would like to {connect_label.lower()}. Please guide me through the process.")
             st.rerun()
 
