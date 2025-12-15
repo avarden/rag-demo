@@ -58,7 +58,7 @@ if "age_context" not in st.session_state: st.session_state.age_context = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "current_suggestions" not in st.session_state: st.session_state.current_suggestions = []
 
-# 2. LOAD BRAIN
+# 2. LOAD BRAIN (Optimized)
 @st.cache_resource
 def load_rag_pipeline():
     if os.environ.get("GOOGLE_API_KEY") is None: return None
@@ -67,10 +67,13 @@ def load_rag_pipeline():
     try:
         embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
-        retriever = vectorstore.as_retriever()
         
-        # Using Gemini 2.0 Flash
-        llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", temperature=0)
+        # --- OPTIMIZATION 1: LIMIT RETRIEVAL ---
+        # Only fetch top 3 documents (instead of default 4). Saves ~25% tokens per call.
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+        
+        # Using Flash Lite for speed/efficiency
+        llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash-lite-preview-02-05", temperature=0)
         
         system_prompt = (
             "You are KAI (Kind AI), a guide for everyday life. "
@@ -135,7 +138,7 @@ def get_locations_from_file():
     sorted_locs.append("Other / International")
     return sorted_locs
 
-# --- HELPER: GENERATE RESPONSE (FIXED ERROR HANDLING) ---
+# --- HELPER: GENERATE RESPONSE (Efficient Retry) ---
 def generate_response(prompt_text):
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     st.session_state.current_suggestions = [] 
@@ -152,7 +155,7 @@ def generate_response(prompt_text):
             with st.spinner("Thinking gently..."):
                 max_retries = 3
                 success = False
-                last_error = None # <--- VARIABLE TO STORE ERROR SAFELY
+                last_error = None
                 
                 for attempt in range(max_retries):
                     try:
@@ -193,9 +196,11 @@ def generate_response(prompt_text):
                         break 
                         
                     except Exception as e:
-                        last_error = e # Store error to use outside loop
+                        last_error = e
                         if "429" in str(e):
-                            time.sleep(2) 
+                            # --- OPTIMIZATION 2: SLOWER RETRY ---
+                            # Waiting 4s is better than 2s for rate limits
+                            time.sleep(4) 
                             continue 
                         else:
                             st.error(f"Error: {e}")
@@ -203,8 +208,8 @@ def generate_response(prompt_text):
                 
                 if success:
                     st.rerun()
-                elif last_error and "429" in str(last_error): # Check stored error safely
-                     st.error("KAI is busy (Rate Limit). Please wait 1 minute and try again.")
+                elif last_error and "429" in str(last_error):
+                     st.error("KAI is taking a short break. Please wait 30 seconds.")
 
 # --- 3. INTRO SCREEN ---
 if not st.session_state.intro_complete:
