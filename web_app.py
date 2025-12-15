@@ -67,8 +67,8 @@ def load_rag_pipeline():
     vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
     retriever = vectorstore.as_retriever()
     
-    # --- MODEL UPDATED: GEMINI 2.5 FLASH ---
-    llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
+    # --- MODEL SWITCHED TO GEMINI 2.0 (FRESH QUOTA) ---
+    llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", temperature=0)
     
     system_prompt = (
         "You are KAI (Kind AI), a guide for everyday life. "
@@ -129,12 +129,11 @@ def get_locations_from_file():
     sorted_locs.append("Other / International")
     return sorted_locs
 
-# --- HELPER: GENERATE RESPONSE (With Retry + Memory Limit) ---
+# --- HELPER: GENERATE RESPONSE ---
 def generate_response(prompt_text):
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     st.session_state.current_suggestions = [] 
     
-    # 1. Limit Memory (Last 6 messages)
     recent_messages = st.session_state.messages[-6:] 
     
     chat_history = []
