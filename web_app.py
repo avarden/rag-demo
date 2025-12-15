@@ -58,22 +58,18 @@ if "age_context" not in st.session_state: st.session_state.age_context = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "current_suggestions" not in st.session_state: st.session_state.current_suggestions = []
 
-# 2. LOAD BRAIN (With Error Handling)
+# 2. LOAD BRAIN
 @st.cache_resource
 def load_rag_pipeline():
     if os.environ.get("GOOGLE_API_KEY") is None: return None
-    
-    # Check Database first
-    if not os.path.exists("./chroma_db_data"): 
-        return None
+    if not os.path.exists("./chroma_db_data"): return None
 
     try:
-        # Init Embeddings
         embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
         retriever = vectorstore.as_retriever()
         
-        # Init LLM (Gemini 2.0 Flash)
+        # Using Gemini 2.0 Flash
         llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", temperature=0)
         
         system_prompt = (
@@ -117,7 +113,6 @@ def load_rag_pipeline():
         return rag_chain
         
     except Exception as e:
-        # Log error to console for developer
         print(f"❌ Error loading pipeline: {e}")
         return None
 
@@ -140,7 +135,7 @@ def get_locations_from_file():
     sorted_locs.append("Other / International")
     return sorted_locs
 
-# --- HELPER: GENERATE RESPONSE ---
+# --- HELPER: GENERATE RESPONSE (FIXED ERROR HANDLING) ---
 def generate_response(prompt_text):
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     st.session_state.current_suggestions = [] 
@@ -157,6 +152,7 @@ def generate_response(prompt_text):
             with st.spinner("Thinking gently..."):
                 max_retries = 3
                 success = False
+                last_error = None # <--- VARIABLE TO STORE ERROR SAFELY
                 
                 for attempt in range(max_retries):
                     try:
@@ -197,6 +193,7 @@ def generate_response(prompt_text):
                         break 
                         
                     except Exception as e:
+                        last_error = e # Store error to use outside loop
                         if "429" in str(e):
                             time.sleep(2) 
                             continue 
@@ -206,8 +203,8 @@ def generate_response(prompt_text):
                 
                 if success:
                     st.rerun()
-                elif not success and "429" in str(e):
-                     st.error("KAI is busy. Please wait 1 minute and try again.")
+                elif last_error and "429" in str(last_error): # Check stored error safely
+                     st.error("KAI is busy (Rate Limit). Please wait 1 minute and try again.")
 
 # --- 3. INTRO SCREEN ---
 if not st.session_state.intro_complete:
@@ -288,13 +285,12 @@ else:
             st.session_state.clear()
             st.rerun()
 
-    # --- ERROR HANDLING DISPLAY ---
+    # Error handling display
     if rag_chain is None:
-        # Check if it's because of missing DB or API connection failure
         if not os.path.exists("./chroma_db_data"):
-            st.error("❌ Database missing. Please run 'rag_app.py' locally to build the database, then push to GitHub.")
+            st.error("❌ Database missing. Please run 'rag_app.py' locally.")
         else:
-            st.error("❌ Connection Error: Could not connect to the AI Model. Please check your API Key and Model Name.")
+            st.error("❌ Connection Error: Check API Key or Model Name.")
         st.stop()
 
     if not st.session_state.messages:
