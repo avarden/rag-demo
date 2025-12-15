@@ -10,15 +10,21 @@ from langchain_classic.chains.combine_documents import create_stuff_documents_ch
 # --- CONFIGURATION ---
 st.set_page_config(page_title="KAI: Kind AI", page_icon="kai_logo.png", layout="wide")
 
-# --- BRANDING & CSS (WCAG AAA COMPLIANT) ---
+# --- BRANDING & CSS (Readability Fix) ---
 st.markdown("""
     <style>
-    /* 1. FORCE LIGHT THEME & BACKGROUNDS */
+    /* 1. GLOBAL TEXT & BACKGROUNDS */
     .stApp {
         background-color: #FFFFFF;
     }
     
-    /* 2. REMOVE BLACK BARS */
+    /* Global Text Color - Deep Navy for AAA Compliance */
+    h1, h2, h3, h4, p, li, .stMarkdown, .stCaption {
+        color: #0E2A3A !important;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    }
+    
+    /* 2. HEADER & FOOTER CLEANUP */
     header[data-testid="stHeader"] {
         background-color: #FFFFFF !important;
     }
@@ -27,58 +33,55 @@ st.markdown("""
         border-top: 1px solid #F0F6F8;
     }
     
-    /* 3. TEXT STYLING - WCAG AAA FIX */
-    /* Previous color #4A7A94 failed AAA. New color #0E2A3A is 16:1 contrast. */
-    h1, h2, h3, h4, p, li, .stMarkdown, .stCaption {
-        color: #0E2A3A !important; /* Deep Navy */
-        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
-    }
-    
-    /* 4. SIDEBAR STYLING */
+    /* 3. SIDEBAR STYLING */
     section[data-testid="stSidebar"] {
-        background-color: #F4F8FA; /* Very light cool grey */
+        background-color: #F4F8FA;
         border-right: 1px solid #E1EFFF;
     }
     
-    /* 5. PRIMARY BUTTON STYLING */
-    /* Darkened to #2C5E7A to ensure white text is readable (passes 4.5:1 for UI) */
+    /* 4. PRIMARY BUTTONS (Begin Journey / Start Chat) */
+    /* Dark Navy Background + Pure White Text */
     div.stButton > button:first-child {
-        background-color: #2C5E7A !important; 
-        color: #FFFFFF !important;
+        background-color: #1F455C !important; 
         border: none;
         border-radius: 10px;
         padding: 0.5rem 1rem;
-        font-size: 18px !important;
-        font-weight: 600;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         transition: all 0.2s ease;
     }
+    /* CRITICAL FIX: Force text inside buttons to be WHITE */
+    div.stButton > button:first-child p {
+        color: #FFFFFF !important; 
+        font-size: 18px !important;
+        font-weight: 600 !important;
+    }
     div.stButton > button:first-child:hover {
-        background-color: #1F455C !important; /* Even darker on hover */
+        background-color: #0E2A3A !important; /* Darker on hover */
         transform: translateY(-1px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
 
-    /* 6. SUGGESTION BUTTONS */
+    /* 5. SUGGESTION BUTTONS ("Help me create...") */
+    /* We style these as "Cards" (White Bg + Dark Text) for contrast */
     div[data-testid="column"] button {
-        background-color: #F4F8FA !important; 
-        color: #0E2A3A !important; /* High contrast text */
-        border: 1px solid #8ABCCE !important; /* Original brand color ok for border */
-        font-size: 16px !important;
-        font-weight: 600 !important; /* Bolder text helps legibility */
+        background-color: #FFFFFF !important; 
+        border: 2px solid #E1EFFF !important; 
         height: auto !important;
         padding: 15px !important;
         text-align: left !important;
-        white-space: normal !important;
+    }
+    /* Text inside Suggestion Buttons */
+    div[data-testid="column"] button p {
+        color: #0E2A3A !important; /* Dark Navy Text */
+        font-size: 16px !important;
+        font-weight: 500 !important;
     }
     div[data-testid="column"] button:hover {
-        border-color: #2C5E7A !important;
-        background-color: #FFFFFF !important;
-        color: #2C5E7A !important;
+        border-color: #1F455C !important;
+        background-color: #F4F8FA !important;
         transform: translateY(-2px);
     }
     
-    /* 7. CHAT INPUT STYLING */
+    /* 6. CHAT INPUT STYLING */
     div[data-testid="stChatInput"] {
         background-color: transparent !important;
         border-color: transparent !important; 
@@ -90,30 +93,24 @@ st.markdown("""
     }
     textarea[data-testid="stChatInputTextArea"] {
         background-color: #F4F8FA !important;
-        color: #0E2A3A !important; /* Dark text for typing */
+        color: #0E2A3A !important;
         caret-color: #0E2A3A;
-        border: 2px solid #E1EFFF !important; /* Slightly thicker border for visibility */
+        border: 2px solid #E1EFFF !important;
         border-radius: 25px !important;
         padding: 12px 20px !important;
-        box-shadow: none !important;
     }
     textarea[data-testid="stChatInputTextArea"]:focus {
-        border-color: #2C5E7A !important; /* Darker focus ring */
-        box-shadow: 0 0 0 3px rgba(44, 94, 122, 0.2) !important;
+        border-color: #1F455C !important;
+        box-shadow: 0 0 0 3px rgba(31, 69, 92, 0.15) !important;
         outline: none !important;
-    }
-    /* Placeholder Text */
-    textarea[data-testid="stChatInputTextArea"]::placeholder {
-        color: #5A7080 !important; /* Darker grey for accessibility */
     }
     button[data-testid="stChatInputSubmitButton"] {
         background-color: transparent !important;
-        color: #2C5E7A !important; /* Darker icon */
+        color: #1F455C !important;
         border: none !important;
-        box-shadow: none !important;
     }
     
-    /* 8. LIST STYLING */
+    /* 7. LIST STYLING */
     .kai-list {
         font-size: 1.1rem;
         line-height: 1.8;
@@ -122,7 +119,7 @@ st.markdown("""
     }
     .kai-list strong {
         font-weight: 700;
-        color: #0B212D; /* Very dark for emphasis */
+        color: #000000;
     }
     
     footer {visibility: hidden;}
@@ -268,8 +265,7 @@ else:
     if not st.session_state.messages:
         st.markdown("## Hello. How can I guide you today?")
         st.write("")
-        # Darker color for helper text
-        st.markdown("<p style='color: #2C5E7A; opacity: 0.9; font-weight: 500;'>Here are a few ways I can help:</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #0E2A3A; opacity: 0.9; font-weight: 600;'>Here are a few ways I can help:</p>", unsafe_allow_html=True)
         
         if st.session_state.user_role == "Autistic Adult":
             suggestions = [
