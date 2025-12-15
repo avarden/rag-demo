@@ -56,24 +56,43 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
     
-    /* 6. CHAT INPUT STYLING */
+    /* 6. CHAT INPUT STYLING (Refined) */
     .stChatInput {
         padding-bottom: 15px;
     }
+    
+    /* The Input Pill */
     .stChatInput textarea {
         background-color: #F0F6F8 !important;
         color: #4A7A94 !important;
+        caret-color: #4A7A94;
         border: 1px solid #E1EFFF !important;
-        border-radius: 20px !important;
-        padding: 10px 15px;
-        box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+        border-radius: 25px !important; /* Rounder pill */
+        padding: 12px 20px !important;
+        box-shadow: inset 0 1px 3px rgba(0,0,0,0.02) !important;
     }
+    
+    /* Focus State - Soft Blue Glow */
     .stChatInput textarea:focus {
         border-color: #8ABCCE !important;
-        box-shadow: 0 0 0 2px rgba(138, 188, 206, 0.25) !important;
+        box-shadow: 0 0 0 3px rgba(138, 188, 206, 0.2) !important;
+        outline: none !important;
     }
-    .stChatInput button {
+    
+    /* Placeholder Text Color */
+    .stChatInput textarea::placeholder {
+        color: #9FB8C7 !important;
+    }
+    
+    /* The Send Button */
+    div[data-testid="stChatInputSubmitButton"] {
+        background-color: transparent !important;
         color: #8ABCCE !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    div[data-testid="stChatInputSubmitButton"]:hover {
+        color: #4A7A94 !important;
     }
     
     /* 7. LIST STYLING */
@@ -156,8 +175,6 @@ if not st.session_state.intro_complete:
         st.markdown("<h1 style='text-align: left; margin-bottom: 0;'>KAI: Kind AI</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: left; margin-top: 0; font-weight: 400;'>A guide for everyday life.</h3>", unsafe_allow_html=True)
         
-        # --- SAFE HTML BLOCK ---
-        # Defining this as a variable first prevents syntax errors
         intro_list_html = """
         <div class="kai-list">
             • <strong>Kind:</strong> A calm, non-judgmental presence.<br>
