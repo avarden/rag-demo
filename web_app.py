@@ -58,7 +58,7 @@ if "age_context" not in st.session_state: st.session_state.age_context = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "current_suggestions" not in st.session_state: st.session_state.current_suggestions = []
 
-# 2. LOAD BRAIN
+# 2. LOAD BRAIN (High Efficiency)
 @st.cache_resource
 def load_rag_pipeline():
     if os.environ.get("GOOGLE_API_KEY") is None: return None
@@ -68,10 +68,12 @@ def load_rag_pipeline():
         embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
         
-        # Optimization: Limit retrieval to save tokens
-        retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+        # --- SPEED OPTIMIZATION 1: REDUCE RETRIEVAL ---
+        # Fetch only top 2 documents. 
+        # This keeps the context focused and reduces the data sent to the LLM.
+        retriever = vectorstore.as_retriever(search_kwargs={"k": 2})
         
-        # --- MODEL UPDATED: FLASH LITE ---
+        # Using Flash Lite for max speed
         llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash-lite", temperature=0)
         
         system_prompt = (
@@ -137,12 +139,15 @@ def get_locations_from_file():
     sorted_locs.append("Other / International")
     return sorted_locs
 
-# --- HELPER: GENERATE RESPONSE ---
+# --- HELPER: GENERATE RESPONSE (Optimized History) ---
 def generate_response(prompt_text):
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     st.session_state.current_suggestions = [] 
     
-    recent_messages = st.session_state.messages[-6:] 
+    # --- SPEED OPTIMIZATION 2: TIGHTER HISTORY ---
+    # Only keep the last 4 messages (2 exchanges). 
+    # This keeps it fast while remembering the immediate previous question.
+    recent_messages = st.session_state.messages[-4:] 
     
     chat_history = []
     for msg in recent_messages[:-1]:
@@ -197,7 +202,7 @@ def generate_response(prompt_text):
                     except Exception as e:
                         last_error = e
                         if "429" in str(e):
-                            time.sleep(4) # Wait longer for Lite model recovery
+                            time.sleep(2) 
                             continue 
                         else:
                             st.error(f"Error: {e}")
@@ -206,7 +211,7 @@ def generate_response(prompt_text):
                 if success:
                     st.rerun()
                 elif last_error and "429" in str(last_error):
-                     st.error("KAI is busy (Rate Limit). Please wait 1 minute or try again tomorrow.")
+                     st.error("KAI is busy (Rate Limit). Please wait 1 minute.")
 
 # --- 3. INTRO SCREEN ---
 if not st.session_state.intro_complete:
