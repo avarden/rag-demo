@@ -7,7 +7,7 @@ from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 
 # --- CONFIGURATION ---
-st.set_page_config(page_title="Autism Resource AI", page_icon="🧩")
+st.set_page_config(page_title="KAI: Kind AI", page_icon="🌿")
 
 # 1. SETUP API KEY
 if "GOOGLE_API_KEY" in st.secrets:
@@ -16,7 +16,8 @@ else:
     st.error("❌ Missing API Key! Make sure you have a .streamlit/secrets.toml file locally.")
 
 # --- SESSION STATE INITIALIZATION ---
-# We use these variables to track where the user is in the flow
+if "intro_complete" not in st.session_state:
+    st.session_state.intro_complete = False
 if "onboarding_complete" not in st.session_state:
     st.session_state.onboarding_complete = False
 if "user_role" not in st.session_state:
@@ -40,21 +41,21 @@ def load_rag_pipeline():
     )
     retriever = vectorstore.as_retriever()
     
-    # Setup LLM
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
-    # --- DYNAMIC SYSTEM PROMPT ---
-    # We leave placeholders {role} and {age} that we will fill in at runtime
+    # --- KAI PERSONA PROMPT ---
     system_prompt = (
-        "You are a compassionate and helpful assistant connecting people to autism resources. "
-        "CONTEXT ABOUT USER: You are speaking to a {role}. "
-        "The autistic individual is {age} years old. "
-        "Adjust your tone and recommendations to be appropriate for this age group and role. "
-        "Use the retrieved context to answer the question. "
-        "If the user asks for a specific type of resource (like visual schedules), "
-        "list the options available in the context. "
-        "If you don't know, say so gently."
-        "\n\n"
+        "You are KAI (Kind AI), a guide for everyday life. "
+        "Your core philosophy:\n"
+        "1. Kind: Be a calm, non-judgmental presence.\n"
+        "2. Assistive: Focus on practical help, not diagnosis.\n"
+        "3. Intelligent: Understand context and provide meaningful guidance.\n\n"
+        "You are not here to control, correct, or 'fix' anyone. "
+        "Offer step-by-step support with daily routines. "
+        "Give simple, literal explanations of complex information. "
+        "Provide calm prompts if the user seems overwhelmed.\n\n"
+        "CONTEXT: You are speaking to a {role}. "
+        "The individual is {age} years old. Adjust your language accordingly.\n\n"
         "RETRIEVED KNOWLEDGE:\n"
         "{context}"
     )
@@ -66,7 +67,6 @@ def load_rag_pipeline():
         ]
     )
     
-    # Build Chain
     question_answer_chain = create_stuff_documents_chain(llm, prompt)
     rag_chain = create_retrieval_chain(retriever, question_answer_chain)
     
@@ -74,77 +74,96 @@ def load_rag_pipeline():
 
 rag_chain = load_rag_pipeline()
 
-# --- 3. ONBOARDING FLOW ---
-if not st.session_state.onboarding_complete:
-    st.title("🧩 Welcome")
-    st.markdown("To provide the best resources, please tell us a bit about yourself.")
+# --- 3. INTRO SCREEN (The Brand Story) ---
+if not st.session_state.intro_complete:
+    st.title("🌿 KAI: Kind AI")
+    st.subheader("A guide for everyday life.")
     
-    # Step 1: Choose Role
+    st.markdown("---")
+    
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.markdown("### **K**ind")
+        st.markdown("### **A**ssistive")
+        st.markdown("### **I**ntelligent")
+    with col2:
+        st.markdown("A calm, non-judgmental presence.")
+        st.markdown("Focused on practical help, not diagnosis.")
+        st.markdown("Able to understand context and provide meaningful guidance.")
+    
+    st.markdown("---")
+    st.markdown(
+        """
+        **KAI is not here to control, correct, or “fix” anyone.** We act as a guide offering:
+        * Step-by-step support with daily routines
+        * Simple, literal explanations of complex information
+        * Calm prompts when you feel overwhelmed
+        """
+    )
+    st.markdown("---")
+    
+    if st.button("Begin Journey", type="primary"):
+        st.session_state.intro_complete = True
+        st.rerun()
+
+# --- 4. ONBOARDING FLOW ---
+elif not st.session_state.onboarding_complete:
+    st.title("Settings")
+    st.markdown("To help KAI guide you better, please select an option:")
+    
     if st.session_state.user_role is None:
-        st.subheader("I am...")
         col1, col2 = st.columns(2)
-        
         with col1:
-            if st.button("An Autistic Adult"):
+            if st.button("I am an Autistic Adult"):
                 st.session_state.user_role = "Autistic Adult"
-                st.rerun() # Refresh to show next step
-        
+                st.rerun()
         with col2:
-            if st.button("A Caregiver"):
+            if st.button("I am a Caregiver"):
                 st.session_state.user_role = "Caregiver"
                 st.rerun()
 
-    # Step 2: Choose Age
     else:
         role = st.session_state.user_role
-        
         if role == "Autistic Adult":
             st.subheader("How old are you?")
         else:
             st.subheader("How old is the person you care for?")
             
-        # Age Input
         age_input = st.number_input("Age", min_value=1, max_value=120, value=18)
         
-        if st.button("Start Chatting"):
+        if st.button("Start Chat"):
             st.session_state.age_context = age_input
             st.session_state.onboarding_complete = True
             st.rerun()
 
-# --- 4. MAIN CHAT INTERFACE ---
+# --- 5. MAIN CHAT INTERFACE ---
 else:
-    # Header with Context Badge
-    st.title("🧩 Autism Resource Assistant")
-    st.caption(f"Context: {st.session_state.user_role} | Age: {st.session_state.age_context}")
+    # Minimal Header
+    st.title("🌿 KAI")
     
-    # Reset Button (in sidebar)
+    # Sidebar Context
     with st.sidebar:
-        st.write("Current Settings:")
-        st.info(f"Role: {st.session_state.user_role}\n\nAge: {st.session_state.age_context}")
-        if st.button("Reset / Start Over"):
+        st.header("Context")
+        st.info(f"**Role:** {st.session_state.user_role}\n\n**Age:** {st.session_state.age_context}")
+        if st.button("Reset KAI"):
             st.session_state.clear()
             st.rerun()
 
-    # Database Check
     if rag_chain is None:
         st.error("❌ Database not found! Please run 'rag_app.py' locally first.")
 
-    # Display History
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # React to Input
-    if prompt := st.chat_input("Ask a question..."):
+    if prompt := st.chat_input("How can I help you today?"):
         st.chat_message("user").markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
 
         with st.chat_message("assistant"):
             if rag_chain:
-                with st.spinner("Searching resources..."):
+                with st.spinner("Thinking gently..."):
                     try:
-                        # --- CRITICAL: PASSING THE CONTEXT ---
-                        # We pass the role and age into the prompt variables we defined earlier
                         response = rag_chain.invoke({
                             "input": prompt,
                             "role": st.session_state.user_role,
@@ -156,8 +175,7 @@ else:
 
                         st.markdown(answer)
                         
-                        # Sources Logic
-                        with st.expander("📚 Recommended Resources"):
+                        with st.expander("📚 Helpful Resources"):
                             unique_sources = set()
                             for doc in source_documents:
                                 name = doc.metadata.get("source", "Unknown Resource")
