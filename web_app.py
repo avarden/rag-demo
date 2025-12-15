@@ -67,7 +67,7 @@ def load_rag_pipeline():
     vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
     retriever = vectorstore.as_retriever()
     
-    # --- MODEL UPDATED HERE ---
+    # --- MODEL UPDATED: GEMINI 2.5 FLASH ---
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
     system_prompt = (
@@ -134,7 +134,7 @@ def generate_response(prompt_text):
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     st.session_state.current_suggestions = [] 
     
-    # 1. LIMIT MEMORY (Fixes token overload)
+    # 1. Limit Memory (Last 6 messages)
     recent_messages = st.session_state.messages[-6:] 
     
     chat_history = []
@@ -145,8 +145,6 @@ def generate_response(prompt_text):
     if rag_chain:
         with st.chat_message("assistant"):
             with st.spinner("Thinking gently..."):
-                
-                # 2. RETRY LOOP (Fixes 429 Quota errors)
                 max_retries = 3
                 success = False
                 
@@ -199,7 +197,7 @@ def generate_response(prompt_text):
                 if success:
                     st.rerun()
                 elif not success and "429" in str(e):
-                     st.error("KAI is a bit busy right now. Please wait a moment and try again.")
+                     st.error("KAI is busy. Please wait 1 minute and try again.")
 
 # --- 3. INTRO SCREEN ---
 if not st.session_state.intro_complete:
