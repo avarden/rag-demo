@@ -59,7 +59,7 @@ st.markdown("""
         transform: translateY(-1px);
     }
 
-    /* 5. SUGGESTION BUTTONS (Outline Style) */
+    /* 5. SUGGESTION BUTTONS */
     div[data-testid="column"] button {
         background-color: #FFFFFF !important; 
         border: 2px solid #E1EFFF !important; 
@@ -137,7 +137,6 @@ if "age_context" not in st.session_state:
     st.session_state.age_context = None
 if "messages" not in st.session_state:
     st.session_state.messages = []
-# NEW: Store dynamic suggestions
 if "current_suggestions" not in st.session_state:
     st.session_state.current_suggestions = []
 
@@ -153,7 +152,7 @@ def load_rag_pipeline():
     retriever = vectorstore.as_retriever()
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
-    # --- UPDATED PROMPT: ADDED "SUGGESTIONS" LOGIC ---
+    # --- UPDATED PROMPT: ADDED MATCHMAKER PROTOCOL ---
     system_prompt = (
         "You are KAI (Kind AI), a guide for everyday life. "
         "Your core philosophy:\n"
@@ -162,6 +161,13 @@ def load_rag_pipeline():
         "3. Intelligent: Understand context and provide meaningful guidance.\n\n"
         "CONTEXT: You are speaking to a {role} located in {location}. "
         "The individual is {age} years old.\n\n"
+        "--- SPECIAL MODE: MATCHMAKING & CONNECTION ---\n"
+        "IF the user asks to 'find friends' or 'connect with caregivers':\n"
+        "1. Adopt a warm, welcoming 'Matchmaker' persona.\n"
+        "2. Do not say you cannot do it. Instead, say you will help build their profile to find the best match.\n"
+        "3. Start an interview process. Ask ONE question at a time. Do not overwhelm them.\n"
+        "4. Good questions for Autistic Adults: Special interests/Hobbies? Preferred communication (Text vs Voice)? Sensory needs for meetups?\n"
+        "5. Good questions for Caregivers: Age of person supported? Main challenges? Looking for emotional support or practical tips?\n\n"
         "--- INSTRUCTIONS FOR RESPONSE STYLE ---\n"
         "IF SPEAKING TO AN 'Autistic Adult':\n"
         "1. Use simple, short sentences.\n"
@@ -169,7 +175,7 @@ def load_rag_pipeline():
         "3. If giving instructions, use a numbered list with a MAXIMUM of 7 steps.\n\n"
         "IF SPEAKING TO A 'Caregiver':\n"
         "1. Be supportive, empathetic, and detailed.\n\n"
-        "--- FOLLOW-UP INSTRUCTION (CRITICAL) ---\n"
+        "--- FOLLOW-UP INSTRUCTION ---\n"
         "At the very end of your response, on a new line, provide exactly 3 short, relevant follow-up options for the user to click.\n"
         "Format them strictly like this:\n"
         "SUGGESTIONS: Option 1 | Option 2 | Option 3\n\n"
@@ -205,10 +211,7 @@ def get_locations_from_file():
 
 # --- HELPER: GENERATE RESPONSE & PARSE SUGGESTIONS ---
 def generate_response(prompt_text):
-    # 1. Add User Message
     st.session_state.messages.append({"role": "user", "content": prompt_text})
-    
-    # 2. Clear previous suggestions immediately
     st.session_state.current_suggestions = []
     
     if rag_chain:
@@ -224,23 +227,18 @@ def generate_response(prompt_text):
                     raw_answer = response["answer"]
                     source_documents = response["context"]
                     
-                    # --- PARSING LOGIC ---
                     if "SUGGESTIONS:" in raw_answer:
                         parts = raw_answer.split("SUGGESTIONS:")
                         clean_answer = parts[0].strip()
                         suggestions_text = parts[1].strip()
-                        
-                        # Split by pipe '|' and clean up
                         new_suggestions = [s.strip() for s in suggestions_text.split("|")]
                         st.session_state.current_suggestions = new_suggestions
                     else:
                         clean_answer = raw_answer
                         st.session_state.current_suggestions = []
                     
-                    # Display Answer
                     st.markdown(clean_answer)
                     
-                    # Display Sources
                     if source_documents:
                          with st.expander("📚 Helpful Resources"):
                             unique_sources = set()
@@ -257,7 +255,6 @@ def generate_response(prompt_text):
                             else:
                                 st.markdown("_No specific resources cited._")
                                 
-                    # Save to history (clean version)
                     st.session_state.messages.append({"role": "assistant", "content": clean_answer, "sources": source_documents})
                     
                 except Exception as e:
@@ -347,14 +344,27 @@ else:
         st.markdown("### Context")
         st.info(f"**Role:** {st.session_state.user_role}\n\n**Loc:** {st.session_state.user_location}\n\n**Age:** {st.session_state.age_context}")
         st.write("")
+        
+        # --- NEW CONNECTION BUTTON ---
+        if st.session_state.user_role == "Autistic Adult":
+            connect_label = "Find friends"
+        else:
+            connect_label = "Connect with other caregivers"
+            
+        # We use a primary button style for this positive action
+        if st.button(connect_label, type="primary"):
+            # Trigger the matchmaking flow
+            generate_response(f"I would like to {connect_label.lower()}. Please guide me through the process.")
+            st.rerun()
+
+        st.write("")
         if st.button("Reset KAI"):
             st.session_state.clear()
             st.rerun()
 
-    # --- DISPLAY MESSAGES ---
+    # --- CHAT & SUGGESTIONS ---
     if not st.session_state.messages:
         st.markdown("## Hello. How can I guide you today?")
-        # Set default suggestions if history is empty
         if not st.session_state.current_suggestions:
             if st.session_state.user_role == "Autistic Adult":
                 st.session_state.current_suggestions = [
@@ -392,15 +402,10 @@ else:
                     else:
                         st.markdown("_No specific resources cited._")
 
-    # --- DYNAMIC SUGGESTION BUTTONS ---
-    # We display these just above the chat input
     if st.session_state.current_suggestions:
         st.write("")
         st.markdown("<p style='color: #0E2A3A; opacity: 0.9; font-weight: 600;'>Suggested next steps:</p>", unsafe_allow_html=True)
-        
-        # Determine columns (handle 1, 2, or 3 suggestions safely)
         cols = st.columns(len(st.session_state.current_suggestions))
-        
         for i, suggestion in enumerate(st.session_state.current_suggestions):
             if cols[i].button(suggestion, key=f"sugg_{i}"):
                 generate_response(suggestion)
