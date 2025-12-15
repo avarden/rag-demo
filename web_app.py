@@ -58,57 +58,68 @@ if "age_context" not in st.session_state: st.session_state.age_context = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "current_suggestions" not in st.session_state: st.session_state.current_suggestions = []
 
-# 2. LOAD BRAIN
+# 2. LOAD BRAIN (With Error Handling)
 @st.cache_resource
 def load_rag_pipeline():
     if os.environ.get("GOOGLE_API_KEY") is None: return None
-    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
-    if not os.path.exists("./chroma_db_data"): return None
-    vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
-    retriever = vectorstore.as_retriever()
     
-    # --- MODEL SWITCHED TO GEMINI 2.0 (FRESH QUOTA) ---
-    llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", temperature=0)
-    
-    system_prompt = (
-        "You are KAI (Kind AI), a guide for everyday life. "
-        "Your core philosophy:\n"
-        "1. Kind: Be a calm, non-judgmental presence.\n"
-        "2. Assistive: Focus on practical help, not diagnosis.\n"
-        "3. Intelligent: Understand context and provide meaningful guidance.\n\n"
-        "CONTEXT: You are speaking to a {role} located in {location}. "
-        "The individual is {age} years old.\n\n"
-        "--- SPECIAL MODE: MATCHMAKING & CONNECTION ---\n"
-        "IF the user asks to 'find friends' or 'connect with caregivers', OR if the chat history shows we are currently building a profile:\n"
-        "1. Adopt a warm, welcoming 'Matchmaker' persona.\n"
-        "2. Continue the interview process naturally. Ask ONE question at a time.\n"
-        "3. Acknowledge their previous answer before asking the next one.\n"
-        "4. Good questions for Autistic Adults: Special interests/Hobbies? Preferred communication (Text vs Voice)? Sensory needs for meetups?\n"
-        "5. Good questions for Caregivers: Age of person supported? Main challenges? Looking for emotional support or practical tips?\n\n"
-        "--- INSTRUCTIONS FOR RESPONSE STYLE ---\n"
-        "IF SPEAKING TO AN 'Autistic Adult':\n"
-        "1. Use simple, short sentences.\n"
-        "2. Use literal language only (NO metaphors, idioms, or sarcasm).\n"
-        "3. If giving instructions, use a numbered list with a MAXIMUM of 7 steps.\n\n"
-        "IF SPEAKING TO A 'Caregiver':\n"
-        "1. Be supportive, empathetic, and detailed.\n\n"
-        "--- FOLLOW-UP INSTRUCTION ---\n"
-        "At the very end of your response, on a new line, provide exactly 3 short, relevant follow-up options for the user to click.\n"
-        "Format them strictly like this:\n"
-        "SUGGESTIONS: Option 1 | Option 2 | Option 3\n\n"
-        "RETRIEVED KNOWLEDGE:\n"
-        "{context}"
-    )
-    
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
-        MessagesPlaceholder(variable_name="chat_history"),
-        ("human", "{input}"),
-    ])
-    
-    question_answer_chain = create_stuff_documents_chain(llm, prompt)
-    rag_chain = create_retrieval_chain(retriever, question_answer_chain)
-    return rag_chain
+    # Check Database first
+    if not os.path.exists("./chroma_db_data"): 
+        return None
+
+    try:
+        # Init Embeddings
+        embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
+        vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
+        retriever = vectorstore.as_retriever()
+        
+        # Init LLM (Gemini 2.0 Flash)
+        llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash", temperature=0)
+        
+        system_prompt = (
+            "You are KAI (Kind AI), a guide for everyday life. "
+            "Your core philosophy:\n"
+            "1. Kind: Be a calm, non-judgmental presence.\n"
+            "2. Assistive: Focus on practical help, not diagnosis.\n"
+            "3. Intelligent: Understand context and provide meaningful guidance.\n\n"
+            "CONTEXT: You are speaking to a {role} located in {location}. "
+            "The individual is {age} years old.\n\n"
+            "--- SPECIAL MODE: MATCHMAKING & CONNECTION ---\n"
+            "IF the user asks to 'find friends' or 'connect with caregivers', OR if the chat history shows we are currently building a profile:\n"
+            "1. Adopt a warm, welcoming 'Matchmaker' persona.\n"
+            "2. Continue the interview process naturally. Ask ONE question at a time.\n"
+            "3. Acknowledge their previous answer before asking the next one.\n"
+            "4. Good questions for Autistic Adults: Special interests/Hobbies? Preferred communication (Text vs Voice)? Sensory needs for meetups?\n"
+            "5. Good questions for Caregivers: Age of person supported? Main challenges? Looking for emotional support or practical tips?\n\n"
+            "--- INSTRUCTIONS FOR RESPONSE STYLE ---\n"
+            "IF SPEAKING TO AN 'Autistic Adult':\n"
+            "1. Use simple, short sentences.\n"
+            "2. Use literal language only (NO metaphors, idioms, or sarcasm).\n"
+            "3. If giving instructions, use a numbered list with a MAXIMUM of 7 steps.\n\n"
+            "IF SPEAKING TO A 'Caregiver':\n"
+            "1. Be supportive, empathetic, and detailed.\n\n"
+            "--- FOLLOW-UP INSTRUCTION ---\n"
+            "At the very end of your response, on a new line, provide exactly 3 short, relevant follow-up options for the user to click.\n"
+            "Format them strictly like this:\n"
+            "SUGGESTIONS: Option 1 | Option 2 | Option 3\n\n"
+            "RETRIEVED KNOWLEDGE:\n"
+            "{context}"
+        )
+        
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            MessagesPlaceholder(variable_name="chat_history"),
+            ("human", "{input}"),
+        ])
+        
+        question_answer_chain = create_stuff_documents_chain(llm, prompt)
+        rag_chain = create_retrieval_chain(retriever, question_answer_chain)
+        return rag_chain
+        
+    except Exception as e:
+        # Log error to console for developer
+        print(f"❌ Error loading pipeline: {e}")
+        return None
 
 rag_chain = load_rag_pipeline()
 
@@ -277,6 +288,15 @@ else:
             st.session_state.clear()
             st.rerun()
 
+    # --- ERROR HANDLING DISPLAY ---
+    if rag_chain is None:
+        # Check if it's because of missing DB or API connection failure
+        if not os.path.exists("./chroma_db_data"):
+            st.error("❌ Database missing. Please run 'rag_app.py' locally to build the database, then push to GitHub.")
+        else:
+            st.error("❌ Connection Error: Could not connect to the AI Model. Please check your API Key and Model Name.")
+        st.stop()
+
     if not st.session_state.messages:
         st.markdown("## Hello. How can I guide you today?")
         if not st.session_state.current_suggestions:
@@ -284,10 +304,6 @@ else:
                 st.session_state.current_suggestions = ["Help me create a calm morning routine.", "How can I explain my sensory needs?", "Tips for burnout?"]
             else:
                 st.session_state.current_suggestions = ["Sensory-friendly activities.", "Support during a meltdown?", "Prepare for IEP meeting."]
-
-    if rag_chain is None:
-        st.error("❌ Database missing. Please check your setup.")
-        st.stop()
 
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
