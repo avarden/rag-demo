@@ -156,7 +156,118 @@ if not st.session_state.intro_complete:
         st.markdown("<h1 style='text-align: left; margin-bottom: 0;'>KAI: Kind AI</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: left; margin-top: 0; font-weight: 400;'>A guide for everyday life.</h3>", unsafe_allow_html=True)
         
-        st.markdown("""
+        # --- SAFE HTML BLOCK ---
+        # Defining this as a variable first prevents syntax errors
+        intro_list_html = """
         <div class="kai-list">
             • <strong>Kind:</strong> A calm, non-judgmental presence.<br>
-            • <strong>
+            • <strong>Assistive:</strong> Focused on practical help.<br>
+            • <strong>Intelligent:</strong> Meaningful guidance.
+        </div>
+        """
+        st.markdown(intro_list_html, unsafe_allow_html=True)
+        
+        st.write("") 
+        st.write("") 
+        
+        if st.button("Begin your journey", type="primary"):
+            st.session_state.intro_complete = True
+            st.rerun()
+
+# --- 4. ONBOARDING ---
+elif not st.session_state.onboarding_complete:
+    c1, c2, c3 = st.columns([1, 2, 1])
+    
+    with c2:
+        st.markdown("<h2 style='text-align: center;'>Getting started</h2>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center;'>To help KAI guide you better, please select an option:</p>", unsafe_allow_html=True)
+        st.write("") 
+
+        if st.session_state.user_role is None:
+            b1, b2 = st.columns(2)
+            with b1:
+                if st.button("I am an Autistic Adult", use_container_width=True):
+                    st.session_state.user_role = "Autistic Adult"
+                    st.rerun()
+            with b2:
+                if st.button("I am a Caregiver", use_container_width=True):
+                    st.session_state.user_role = "Caregiver"
+                    st.rerun()
+        else:
+            role = st.session_state.user_role
+            if role == "Autistic Adult":
+                st.markdown("<h3 style='text-align: center;'>How old are you?</h3>", unsafe_allow_html=True)
+            else:
+                st.markdown("<h3 style='text-align: center;'>How old is the person you care for?</h3>", unsafe_allow_html=True)
+                
+            age_input = st.number_input("Age", min_value=1, max_value=120, value=18, label_visibility="collapsed")
+            
+            st.write("")
+            if st.button("Start Chat", type="primary", use_container_width=True):
+                st.session_state.age_context = age_input
+                st.session_state.onboarding_complete = True
+                st.rerun()
+
+# --- 5. MAIN CHAT INTERFACE ---
+else:
+    with st.sidebar:
+        try:
+            st.image("kai_logo.png", width=80)
+        except:
+            st.write("🌿")
+            
+        st.markdown("### Context")
+        st.info(f"**Role:** {st.session_state.user_role}\n\n**Age:** {st.session_state.age_context}")
+        st.write("")
+        if st.button("Reset KAI"):
+            st.session_state.clear()
+            st.rerun()
+
+    if not st.session_state.messages:
+        st.markdown("## Hello. How can I guide you today?")
+
+    if rag_chain is None:
+        st.error("❌ Database missing. Please check your setup.")
+        st.stop()
+
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    if prompt := st.chat_input("Ask about routines, resources, or support..."):
+        st.chat_message("user").markdown(prompt)
+        st.session_state.messages.append({"role": "user", "content": prompt})
+
+        with st.chat_message("assistant"):
+            if rag_chain:
+                with st.spinner("Thinking gently..."):
+                    try:
+                        response = rag_chain.invoke({
+                            "input": prompt,
+                            "role": st.session_state.user_role,
+                            "age": str(st.session_state.age_context)
+                        })
+                        answer = response["answer"]
+                        source_documents = response["context"]
+
+                        st.markdown(answer)
+                        
+                        with st.expander("📚 Helpful Resources"):
+                            unique_sources = set()
+                            for doc in source_documents:
+                                name = doc.metadata.get("source", "Unknown Resource")
+                                url = doc.metadata.get("url", "")
+                                if url and url != "N/A":
+                                    unique_sources.add(f"[{name}]({url})")
+                                else:
+                                    unique_sources.add(name)
+                            
+                            if unique_sources:
+                                for source in unique_sources:
+                                    st.markdown(f"- {source}")
+                            else:
+                                st.markdown("_No specific resources cited._")
+                        
+                        st.session_state.messages.append({"role": "assistant", "content": answer})
+                    except Exception as e:
+                        st.error(f"Error: {e}")
