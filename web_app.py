@@ -18,24 +18,20 @@ st.set_page_config(page_title="KAI: Kind AI", page_icon="kai_logo.png", layout="
 
 st.markdown("""
     <style>
-    /* 1. GLOBAL BACKGROUNDS */
-    /* Force the main app and all containers to be white */
+    /* 1. FORCE LIGHT THEME & BACKGROUNDS */
     .stApp {
         background-color: #FFFFFF;
     }
     
     /* 2. REMOVE BLACK BARS (Header & Footer) */
-    /* This targets the top header bar */
-    header {
+    /* Top Header */
+    header[data-testid="stHeader"] {
         background-color: #FFFFFF !important;
     }
-    /* This targets the bottom footer/input container area */
-    .stBottom {
+    /* Bottom Footer / Chat Input Container - The critical fix */
+    div[data-testid="stBottom"] {
         background-color: #FFFFFF !important;
-    }
-    /* Hide the 'Manage App' button usually in the footer */
-    footer {
-        display: none !important;
+        border-top: 1px solid #F0F6F8; /* Subtle separation */
     }
     
     /* 3. TEXT STYLING */
@@ -69,14 +65,15 @@ st.markdown("""
     }
     
     /* 6. CHAT INPUT STYLING */
-    /* Make the input box blend in */
+    /* This creates the clean white box look */
     .stChatInput {
-        padding-bottom: 20px;
+        padding-bottom: 15px;
     }
     .stChatInput textarea {
-        background-color: #F7FBFC !important;
+        background-color: #F7FBFC !important; /* Very light blue inside input */
         color: #4A7A94 !important;
         border: 1px solid #8ABCCE !important;
+        border-radius: 10px;
     }
     
     /* 7. LIST STYLING */
@@ -91,7 +88,8 @@ st.markdown("""
         color: #2E5E74;
     }
     
-    /* Hide default hamburger menu */
+    /* Hide standard Streamlit footer/menu */
+    footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
@@ -226,10 +224,8 @@ else:
             st.session_state.clear()
             st.rerun()
 
-    # REMOVED: The greeting check loop that had the Wave Emoji
-    # Replaced with a simple persistent greeting if history is empty
+    # REMOVED EMOJI: Clean Greeting
     if not st.session_state.messages:
-        # Simple, Clean Greeting
         st.markdown("## Hello. How can I guide you today?")
 
     if rag_chain is None:
