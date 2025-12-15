@@ -10,7 +10,7 @@ from langchain_classic.chains.combine_documents import create_stuff_documents_ch
 # --- CONFIGURATION ---
 st.set_page_config(page_title="KAI: Kind AI", page_icon="kai_logo.png", layout="wide")
 
-# --- BRANDING & CSS (Readability Fix) ---
+# --- BRANDING & CSS ---
 st.markdown("""
     <style>
     /* 1. GLOBAL TEXT & BACKGROUNDS */
@@ -39,8 +39,7 @@ st.markdown("""
         border-right: 1px solid #E1EFFF;
     }
     
-    /* 4. PRIMARY BUTTONS (Begin Journey / Start Chat) */
-    /* Dark Navy Background + Pure White Text */
+    /* 4. PRIMARY BUTTONS */
     div.stButton > button:first-child {
         background-color: #1F455C !important; 
         border: none;
@@ -49,19 +48,17 @@ st.markdown("""
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         transition: all 0.2s ease;
     }
-    /* CRITICAL FIX: Force text inside buttons to be WHITE */
     div.stButton > button:first-child p {
         color: #FFFFFF !important; 
         font-size: 18px !important;
         font-weight: 600 !important;
     }
     div.stButton > button:first-child:hover {
-        background-color: #0E2A3A !important; /* Darker on hover */
+        background-color: #0E2A3A !important;
         transform: translateY(-1px);
     }
 
-    /* 5. SUGGESTION BUTTONS ("Help me create...") */
-    /* We style these as "Cards" (White Bg + Dark Text) for contrast */
+    /* 5. SUGGESTION BUTTONS */
     div[data-testid="column"] button {
         background-color: #FFFFFF !important; 
         border: 2px solid #E1EFFF !important; 
@@ -69,9 +66,8 @@ st.markdown("""
         padding: 15px !important;
         text-align: left !important;
     }
-    /* Text inside Suggestion Buttons */
     div[data-testid="column"] button p {
-        color: #0E2A3A !important; /* Dark Navy Text */
+        color: #0E2A3A !important;
         font-size: 16px !important;
         font-weight: 500 !important;
     }
@@ -110,16 +106,16 @@ st.markdown("""
         border: none !important;
     }
     
-    /* 7. LIST STYLING */
-    .kai-list {
-        font-size: 1.1rem;
-        line-height: 1.8;
-        color: #0E2A3A;
-        margin-top: 10px;
+    /* 7. AVATAR COLORS (The Fix) */
+    
+    /* User Avatar (Was Red -> Now Calm Blue-Grey) */
+    div[data-testid="stChatMessageAvatarUser"] {
+        background-color: #5A7080 !important;
     }
-    .kai-list strong {
-        font-weight: 700;
-        color: #000000;
+    
+    /* Assistant Avatar (Was Orange -> Now Brand Teal) */
+    div[data-testid="stChatMessageAvatarAssistant"] {
+        background-color: #2C5E7A !important;
     }
     
     footer {visibility: hidden;}
@@ -295,6 +291,7 @@ else:
         st.error("❌ Database missing. Please check your setup.")
         st.stop()
 
+    # --- CHAT DISPLAY (Standard Icons, Custom CSS Colors) ---
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
