@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import json
 import time
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
@@ -19,7 +20,7 @@ st.markdown("""
     }
     
     /* Global Text Color - Deep Navy for AAA Compliance */
-    h1, h2, h3, h4, p, li, .stMarkdown, .stCaption {
+    h1, h2, h3, h4, p, li, .stMarkdown, .stCaption, label {
         color: #0E2A3A !important;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
@@ -106,14 +107,10 @@ st.markdown("""
         border: none !important;
     }
     
-    /* 7. AVATAR COLORS (The Fix) */
-    
-    /* User Avatar (Was Red -> Now Calm Blue-Grey) */
+    /* 7. AVATAR COLORS */
     div[data-testid="stChatMessageAvatarUser"] {
         background-color: #5A7080 !important;
     }
-    
-    /* Assistant Avatar (Was Orange -> Now Brand Teal) */
     div[data-testid="stChatMessageAvatarAssistant"] {
         background-color: #2C5E7A !important;
     }
@@ -134,6 +131,8 @@ if "onboarding_complete" not in st.session_state:
     st.session_state.onboarding_complete = False
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
+if "user_location" not in st.session_state:
+    st.session_state.user_location = None
 if "age_context" not in st.session_state:
     st.session_state.age_context = None
 if "messages" not in st.session_state:
@@ -151,14 +150,17 @@ def load_rag_pipeline():
     retriever = vectorstore.as_retriever()
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
+    # --- UPDATED PROMPT WITH LOCATION ---
     system_prompt = (
         "You are KAI (Kind AI), a guide for everyday life. "
         "Your core philosophy:\n"
         "1. Kind: Be a calm, non-judgmental presence.\n"
         "2. Assistive: Focus on practical help, not diagnosis.\n"
         "3. Intelligent: Understand context and provide meaningful guidance.\n\n"
-        "CONTEXT: You are speaking to a {role}. "
-        "The individual is {age} years old. Adjust your language accordingly.\n\n"
+        "CONTEXT: You are speaking to a {role} located in {location}. "
+        "The individual is {age} years old. "
+        "Prioritize resources that are available in their location (if applicable), "
+        "but also offer general advice.\n\n"
         "RETRIEVED KNOWLEDGE:\n"
         "{context}"
     )
@@ -168,6 +170,31 @@ def load_rag_pipeline():
     return rag_chain
 
 rag_chain = load_rag_pipeline()
+
+# --- HELPER: GET LOCATIONS FROM JSON ---
+def get_locations_from_file():
+    locations = set()
+    # Read the same JSON file we used for ingestion
+    if os.path.exists("resources.json"):
+        try:
+            with open("resources.json", "r") as f:
+                data = json.load(f)
+                for item in data:
+                    city = item.get("city", "N/A")
+                    country = item.get("country", "N/A")
+                    
+                    # Create a nice string like "Toronto, Canada" or just "Canada"
+                    if city != "N/A" and country != "N/A":
+                        locations.add(f"{city}, {country}")
+                    elif country != "N/A":
+                        locations.add(country)
+        except:
+            pass # Fail gracefully if JSON is messy
+            
+    # Sort them and add "Other" at the end
+    sorted_locs = sorted(list(locations))
+    sorted_locs.append("Other / International")
+    return sorted_locs
 
 # --- HELPER: GENERATE RESPONSE ---
 def generate_response(prompt_text):
@@ -179,6 +206,7 @@ def generate_response(prompt_text):
                     response = rag_chain.invoke({
                         "input": prompt_text,
                         "role": st.session_state.user_role,
+                        "location": st.session_state.user_location, # Pass location to Brain
                         "age": str(st.session_state.age_context)
                     })
                     answer = response["answer"]
@@ -214,14 +242,16 @@ if not st.session_state.intro_complete:
             st.session_state.intro_complete = True
             st.rerun()
 
-# --- 4. ONBOARDING ---
+# --- 4. ONBOARDING (Updated Flow) ---
 elif not st.session_state.onboarding_complete:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
         st.markdown("<h2 style='text-align: center;'>Getting started</h2>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center;'>To help KAI guide you better, please select an option:</p>", unsafe_allow_html=True)
-        st.write("") 
+        
+        # STEP 1: ROLE
         if st.session_state.user_role is None:
+            st.markdown("<p style='text-align: center;'>To help KAI guide you better, please select an option:</p>", unsafe_allow_html=True)
+            st.write("") 
             b1, b2 = st.columns(2)
             with b1:
                 if st.button("I am an Autistic Adult", use_container_width=True):
@@ -231,12 +261,34 @@ elif not st.session_state.onboarding_complete:
                 if st.button("I am a Caregiver", use_container_width=True):
                     st.session_state.user_role = "Caregiver"
                     st.rerun()
+        
+        # STEP 2: LOCATION (New!)
+        elif st.session_state.user_location is None:
+            st.markdown("<h3 style='text-align: center;'>Where are you located?</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; opacity: 0.8;'>This helps us suggest local resources.</p>", unsafe_allow_html=True)
+            
+            # Load options dynamically
+            location_options = get_locations_from_file()
+            
+            # Use a Selectbox
+            selected_loc = st.selectbox("Select Location", location_options, index=None, placeholder="Choose a location...")
+            
+            st.write("")
+            if st.button("Next", type="primary", use_container_width=True):
+                if selected_loc:
+                    st.session_state.user_location = selected_loc
+                    st.rerun()
+                else:
+                    st.warning("Please select a location (or 'Other').")
+
+        # STEP 3: AGE
         else:
             role = st.session_state.user_role
             if role == "Autistic Adult":
                 st.markdown("<h3 style='text-align: center;'>How old are you?</h3>", unsafe_allow_html=True)
             else:
                 st.markdown("<h3 style='text-align: center;'>How old is the person you care for?</h3>", unsafe_allow_html=True)
+            
             age_input = st.number_input("Age", min_value=1, max_value=120, value=18, label_visibility="collapsed")
             st.write("")
             if st.button("Start Chat", type="primary", use_container_width=True):
@@ -252,7 +304,8 @@ else:
         except:
             st.write("🌿")
         st.markdown("### Context")
-        st.info(f"**Role:** {st.session_state.user_role}\n\n**Age:** {st.session_state.age_context}")
+        # Display all three context points
+        st.info(f"**Role:** {st.session_state.user_role}\n\n**Loc:** {st.session_state.user_location}\n\n**Age:** {st.session_state.age_context}")
         st.write("")
         if st.button("Reset KAI"):
             st.session_state.clear()
@@ -291,7 +344,6 @@ else:
         st.error("❌ Database missing. Please check your setup.")
         st.stop()
 
-    # --- CHAT DISPLAY (Standard Icons, Custom CSS Colors) ---
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
