@@ -56,42 +56,46 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
     
-    /* 6. CHAT INPUT STYLING (Refined) */
-    .stChatInput {
-        padding-bottom: 15px;
+    /* 6. CHAT INPUT STYLING (The "Double Border" Fix) */
+    
+    /* Step A: Target the generic Streamlit input container and strip it */
+    div[data-testid="stChatInput"] {
+        background-color: transparent !important;
+        border-color: transparent !important; 
     }
     
-    /* The Input Pill */
-    .stChatInput textarea {
-        background-color: #F0F6F8 !important;
-        color: #4A7A94 !important;
-        caret-color: #4A7A94;
-        border: 1px solid #E1EFFF !important;
-        border-radius: 25px !important; /* Rounder pill */
+    /* Step B: Remove the default styling from the wrapper div specifically */
+    .stChatInput > div {
+        background-color: transparent !important;
+        border: none !important; 
+        box-shadow: none !important;
+    }
+
+    /* Step C: Style the actual text area (the part you type in) */
+    textarea[data-testid="stChatInputTextArea"] {
+        background-color: #F0F6F8 !important; /* Soft pill background */
+        color: #4A7A94 !important; /* Text color */
+        border: 1px solid #E1EFFF !important; /* Single clean border */
+        border-radius: 25px !important; /* Pill shape */
         padding: 12px 20px !important;
-        box-shadow: inset 0 1px 3px rgba(0,0,0,0.02) !important;
+        box-shadow: none !important; /* Remove any default shadows */
     }
     
-    /* Focus State - Soft Blue Glow */
-    .stChatInput textarea:focus {
+    /* Step D: Focus State (Soft Glow) */
+    textarea[data-testid="stChatInputTextArea"]:focus {
         border-color: #8ABCCE !important;
         box-shadow: 0 0 0 3px rgba(138, 188, 206, 0.2) !important;
         outline: none !important;
     }
     
-    /* Placeholder Text Color */
-    .stChatInput textarea::placeholder {
-        color: #9FB8C7 !important;
-    }
-    
-    /* The Send Button */
-    div[data-testid="stChatInputSubmitButton"] {
+    /* Step E: The Send Button */
+    button[data-testid="stChatInputSubmitButton"] {
         background-color: transparent !important;
         color: #8ABCCE !important;
         border: none !important;
         box-shadow: none !important;
     }
-    div[data-testid="stChatInputSubmitButton"]:hover {
+    button[data-testid="stChatInputSubmitButton"]:hover {
         color: #4A7A94 !important;
     }
     
