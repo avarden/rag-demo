@@ -4,8 +4,8 @@ import json
 import time
 from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder # <--- NEW IMPORT
-from langchain_core.messages import HumanMessage, AIMessage # <--- NEW IMPORT
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_classic.chains import create_retrieval_chain
 from langchain_classic.chains.combine_documents import create_stuff_documents_chain
 
@@ -153,7 +153,6 @@ def load_rag_pipeline():
     retriever = vectorstore.as_retriever()
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
-    # --- PROMPT WITH MEMORY & INTERVIEW LOGIC ---
     system_prompt = (
         "You are KAI (Kind AI), a guide for everyday life. "
         "Your core philosophy:\n"
@@ -184,7 +183,6 @@ def load_rag_pipeline():
         "{context}"
     )
     
-    # We add a placeholder for chat history so the AI remembers the conversation
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_prompt),
         MessagesPlaceholder(variable_name="chat_history"),
@@ -221,12 +219,11 @@ def get_locations_from_file():
 def generate_response(prompt_text):
     # 1. Add User Message
     st.session_state.messages.append({"role": "user", "content": prompt_text})
-    st.session_state.current_suggestions = []
+    st.session_state.current_suggestions = [] # Clear old suggestions immediately
     
-    # 2. Build Chat History for Memory
-    # We convert Streamlit's JSON history into LangChain Message Objects
+    # 2. Build History
     chat_history = []
-    for msg in st.session_state.messages[:-1]: # Exclude the just-added user message (handled by chain)
+    for msg in st.session_state.messages[:-1]:
         if msg["role"] == "user":
             chat_history.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":
@@ -238,7 +235,7 @@ def generate_response(prompt_text):
                 try:
                     response = rag_chain.invoke({
                         "input": prompt_text,
-                        "chat_history": chat_history, # Pass history here!
+                        "chat_history": chat_history,
                         "role": st.session_state.user_role,
                         "location": st.session_state.user_location, 
                         "age": str(st.session_state.age_context)
@@ -246,6 +243,7 @@ def generate_response(prompt_text):
                     raw_answer = response["answer"]
                     source_documents = response["context"]
                     
+                    # Parse Suggestions
                     if "SUGGESTIONS:" in raw_answer:
                         parts = raw_answer.split("SUGGESTIONS:")
                         clean_answer = parts[0].strip()
@@ -256,6 +254,7 @@ def generate_response(prompt_text):
                         clean_answer = raw_answer
                         st.session_state.current_suggestions = []
                     
+                    # Display Answer
                     st.markdown(clean_answer)
                     
                     if source_documents:
@@ -278,6 +277,10 @@ def generate_response(prompt_text):
                     
                 except Exception as e:
                     st.error(f"Error: {e}")
+    
+    # --- CRITICAL FIX: FORCE RERUN ---
+    # This ensures the new suggestions are drawn immediately
+    st.rerun()
 
 # --- 3. INTRO SCREEN ---
 if not st.session_state.intro_complete:
@@ -372,7 +375,7 @@ else:
             
         if st.button(connect_label, type="primary"):
             generate_response(f"I would like to {connect_label.lower()}. Please guide me through the process.")
-            st.rerun()
+            # Note: No st.rerun() needed here because generate_response has it now
 
         st.write("")
         if st.button("Reset KAI"):
@@ -419,6 +422,7 @@ else:
                     else:
                         st.markdown("_No specific resources cited._")
 
+    # --- RENDER DYNAMIC SUGGESTIONS ---
     if st.session_state.current_suggestions:
         st.write("")
         st.markdown("<p style='color: #0E2A3A; opacity: 0.9; font-weight: 600;'>Suggested next steps:</p>", unsafe_allow_html=True)
@@ -426,8 +430,7 @@ else:
         for i, suggestion in enumerate(st.session_state.current_suggestions):
             if cols[i].button(suggestion, key=f"sugg_{i}"):
                 generate_response(suggestion)
-                st.rerun()
+                # No st.rerun() needed here either, generate_response has it
 
     if prompt := st.chat_input("Ask about routines, resources, or support..."):
         generate_response(prompt)
-        st.rerun()
