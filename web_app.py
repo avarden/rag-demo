@@ -58,7 +58,7 @@ if "age_context" not in st.session_state: st.session_state.age_context = None
 if "messages" not in st.session_state: st.session_state.messages = []
 if "current_suggestions" not in st.session_state: st.session_state.current_suggestions = []
 
-# 2. LOAD BRAIN (Optimized)
+# 2. LOAD BRAIN
 @st.cache_resource
 def load_rag_pipeline():
     if os.environ.get("GOOGLE_API_KEY") is None: return None
@@ -68,12 +68,11 @@ def load_rag_pipeline():
         embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004")
         vectorstore = Chroma(embedding_function=embeddings, persist_directory="./chroma_db_data")
         
-        # --- OPTIMIZATION 1: LIMIT RETRIEVAL ---
-        # Only fetch top 3 documents (instead of default 4). Saves ~25% tokens per call.
+        # Optimization: Limit retrieval to save tokens
         retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
         
-        # Using Flash Lite for speed/efficiency
-        llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash-lite-preview-02-05", temperature=0)
+        # --- MODEL UPDATED: FLASH LITE ---
+        llm = ChatGoogleGenerativeAI(model="models/gemini-2.0-flash-lite", temperature=0)
         
         system_prompt = (
             "You are KAI (Kind AI), a guide for everyday life. "
@@ -138,7 +137,7 @@ def get_locations_from_file():
     sorted_locs.append("Other / International")
     return sorted_locs
 
-# --- HELPER: GENERATE RESPONSE (Efficient Retry) ---
+# --- HELPER: GENERATE RESPONSE ---
 def generate_response(prompt_text):
     st.session_state.messages.append({"role": "user", "content": prompt_text})
     st.session_state.current_suggestions = [] 
@@ -198,9 +197,7 @@ def generate_response(prompt_text):
                     except Exception as e:
                         last_error = e
                         if "429" in str(e):
-                            # --- OPTIMIZATION 2: SLOWER RETRY ---
-                            # Waiting 4s is better than 2s for rate limits
-                            time.sleep(4) 
+                            time.sleep(4) # Wait longer for Lite model recovery
                             continue 
                         else:
                             st.error(f"Error: {e}")
@@ -209,7 +206,7 @@ def generate_response(prompt_text):
                 if success:
                     st.rerun()
                 elif last_error and "429" in str(last_error):
-                     st.error("KAI is taking a short break. Please wait 30 seconds.")
+                     st.error("KAI is busy (Rate Limit). Please wait 1 minute or try again tomorrow.")
 
 # --- 3. INTRO SCREEN ---
 if not st.session_state.intro_complete:
@@ -290,7 +287,6 @@ else:
             st.session_state.clear()
             st.rerun()
 
-    # Error handling display
     if rag_chain is None:
         if not os.path.exists("./chroma_db_data"):
             st.error("❌ Database missing. Please run 'rag_app.py' locally.")
