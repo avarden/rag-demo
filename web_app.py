@@ -150,7 +150,7 @@ def load_rag_pipeline():
     retriever = vectorstore.as_retriever()
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
-    # --- UPDATED PROMPT WITH LOCATION ---
+    # --- UPDATED PROMPT: "PLAIN LANGUAGE" LOGIC ADDED ---
     system_prompt = (
         "You are KAI (Kind AI), a guide for everyday life. "
         "Your core philosophy:\n"
@@ -158,9 +158,17 @@ def load_rag_pipeline():
         "2. Assistive: Focus on practical help, not diagnosis.\n"
         "3. Intelligent: Understand context and provide meaningful guidance.\n\n"
         "CONTEXT: You are speaking to a {role} located in {location}. "
-        "The individual is {age} years old. "
-        "Prioritize resources that are available in their location (if applicable), "
-        "but also offer general advice.\n\n"
+        "The individual is {age} years old.\n\n"
+        "--- INSTRUCTIONS FOR RESPONSE STYLE ---\n"
+        "IF SPEAKING TO AN 'Autistic Adult':\n"
+        "1. Use simple, short sentences.\n"
+        "2. Use literal language only (NO metaphors, idioms, or sarcasm).\n"
+        "3. If giving instructions, use a numbered list with a MAXIMUM of 7 steps.\n"
+        "4. End with a clear, direct choice question, e.g., 'Would you like to add anything or see [next topic] next?'\n\n"
+        "IF SPEAKING TO A 'Caregiver':\n"
+        "1. Be supportive, empathetic, and detailed.\n"
+        "2. You may use longer explanations and standard conversational language.\n\n"
+        "GENERAL RULE: Prioritize resources that are available in {location} if found in the context.\n\n"
         "RETRIEVED KNOWLEDGE:\n"
         "{context}"
     )
@@ -174,7 +182,6 @@ rag_chain = load_rag_pipeline()
 # --- HELPER: GET LOCATIONS FROM JSON ---
 def get_locations_from_file():
     locations = set()
-    # Read the same JSON file we used for ingestion
     if os.path.exists("resources.json"):
         try:
             with open("resources.json", "r") as f:
@@ -182,16 +189,12 @@ def get_locations_from_file():
                 for item in data:
                     city = item.get("city", "N/A")
                     country = item.get("country", "N/A")
-                    
-                    # Create a nice string like "Toronto, Canada" or just "Canada"
                     if city != "N/A" and country != "N/A":
                         locations.add(f"{city}, {country}")
                     elif country != "N/A":
                         locations.add(country)
         except:
-            pass # Fail gracefully if JSON is messy
-            
-    # Sort them and add "Other" at the end
+            pass
     sorted_locs = sorted(list(locations))
     sorted_locs.append("Other / International")
     return sorted_locs
@@ -206,7 +209,7 @@ def generate_response(prompt_text):
                     response = rag_chain.invoke({
                         "input": prompt_text,
                         "role": st.session_state.user_role,
-                        "location": st.session_state.user_location, # Pass location to Brain
+                        "location": st.session_state.user_location, 
                         "age": str(st.session_state.age_context)
                     })
                     answer = response["answer"]
@@ -262,17 +265,12 @@ elif not st.session_state.onboarding_complete:
                     st.session_state.user_role = "Caregiver"
                     st.rerun()
         
-        # STEP 2: LOCATION (New!)
+        # STEP 2: LOCATION
         elif st.session_state.user_location is None:
             st.markdown("<h3 style='text-align: center;'>Where are you located?</h3>", unsafe_allow_html=True)
             st.markdown("<p style='text-align: center; opacity: 0.8;'>This helps us suggest local resources.</p>", unsafe_allow_html=True)
-            
-            # Load options dynamically
             location_options = get_locations_from_file()
-            
-            # Use a Selectbox
             selected_loc = st.selectbox("Select Location", location_options, index=None, placeholder="Choose a location...")
-            
             st.write("")
             if st.button("Next", type="primary", use_container_width=True):
                 if selected_loc:
@@ -304,7 +302,6 @@ else:
         except:
             st.write("🌿")
         st.markdown("### Context")
-        # Display all three context points
         st.info(f"**Role:** {st.session_state.user_role}\n\n**Loc:** {st.session_state.user_location}\n\n**Age:** {st.session_state.age_context}")
         st.write("")
         if st.button("Reset KAI"):
