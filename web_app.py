@@ -24,14 +24,12 @@ st.markdown("""
     }
     
     /* 2. REMOVE BLACK BARS (Header & Footer) */
-    /* Top Header */
     header[data-testid="stHeader"] {
         background-color: #FFFFFF !important;
     }
-    /* Bottom Footer / Chat Input Container - The critical fix */
     div[data-testid="stBottom"] {
         background-color: #FFFFFF !important;
-        border-top: 1px solid #F0F6F8; /* Subtle separation */
+        border-top: 1px solid #F0F6F8; /* Subtle separation line */
     }
     
     /* 3. TEXT STYLING */
@@ -64,16 +62,30 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
     
-    /* 6. CHAT INPUT STYLING */
-    /* This creates the clean white box look */
+    /* 6. CHAT INPUT STYLING (The Fix) */
     .stChatInput {
         padding-bottom: 15px;
     }
+    
+    /* The Input Box Itself */
     .stChatInput textarea {
-        background-color: #F7FBFC !important; /* Very light blue inside input */
+        background-color: #F0F6F8 !important; /* Slightly darker than white for contrast */
         color: #4A7A94 !important;
-        border: 1px solid #8ABCCE !important;
-        border-radius: 10px;
+        border: 1px solid #E1EFFF !important; /* Soft border */
+        border-radius: 20px !important; /* Perfect Pill Shape */
+        padding: 10px 15px; /* Comfortable padding */
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.03); /* Tiny inner shadow */
+    }
+    
+    /* The Focus State (When you click inside) */
+    .stChatInput textarea:focus {
+        border-color: #8ABCCE !important;
+        box-shadow: 0 0 0 2px rgba(138, 188, 206, 0.25) !important; /* Soft Blue Glow */
+    }
+    
+    /* The Send Button Icon (Inside the input) */
+    .stChatInput button {
+        color: #8ABCCE !important;
     }
     
     /* 7. LIST STYLING */
@@ -88,7 +100,7 @@ st.markdown("""
         color: #2E5E74;
     }
     
-    /* Hide standard Streamlit footer/menu */
+    /* Hide standard footer */
     footer {visibility: hidden;}
     #MainMenu {visibility: hidden;}
     </style>
@@ -197,79 +209,4 @@ elif not st.session_state.onboarding_complete:
         else:
             role = st.session_state.user_role
             if role == "Autistic Adult":
-                st.markdown("<h3 style='text-align: center;'>How old are you?</h3>", unsafe_allow_html=True)
-            else:
-                st.markdown("<h3 style='text-align: center;'>How old is the person you care for?</h3>", unsafe_allow_html=True)
-                
-            age_input = st.number_input("Age", min_value=1, max_value=120, value=18, label_visibility="collapsed")
-            
-            st.write("")
-            if st.button("Start Chat", type="primary", use_container_width=True):
-                st.session_state.age_context = age_input
-                st.session_state.onboarding_complete = True
-                st.rerun()
-
-# --- 5. MAIN CHAT INTERFACE ---
-else:
-    with st.sidebar:
-        try:
-            st.image("kai_logo.png", width=80)
-        except:
-            st.write("🌿")
-            
-        st.markdown("### Context")
-        st.info(f"**Role:** {st.session_state.user_role}\n\n**Age:** {st.session_state.age_context}")
-        st.write("")
-        if st.button("Reset KAI"):
-            st.session_state.clear()
-            st.rerun()
-
-    # REMOVED EMOJI: Clean Greeting
-    if not st.session_state.messages:
-        st.markdown("## Hello. How can I guide you today?")
-
-    if rag_chain is None:
-        st.error("❌ Database missing. Please check your setup.")
-        st.stop()
-
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
-
-    if prompt := st.chat_input("Ask about routines, resources, or support..."):
-        st.chat_message("user").markdown(prompt)
-        st.session_state.messages.append({"role": "user", "content": prompt})
-
-        with st.chat_message("assistant"):
-            if rag_chain:
-                with st.spinner("Thinking gently..."):
-                    try:
-                        response = rag_chain.invoke({
-                            "input": prompt,
-                            "role": st.session_state.user_role,
-                            "age": str(st.session_state.age_context)
-                        })
-                        answer = response["answer"]
-                        source_documents = response["context"]
-
-                        st.markdown(answer)
-                        
-                        with st.expander("📚 Helpful Resources"):
-                            unique_sources = set()
-                            for doc in source_documents:
-                                name = doc.metadata.get("source", "Unknown Resource")
-                                url = doc.metadata.get("url", "")
-                                if url and url != "N/A":
-                                    unique_sources.add(f"[{name}]({url})")
-                                else:
-                                    unique_sources.add(name)
-                            
-                            if unique_sources:
-                                for source in unique_sources:
-                                    st.markdown(f"- {source}")
-                            else:
-                                st.markdown("_No specific resources cited._")
-                        
-                        st.session_state.messages.append({"role": "assistant", "content": answer})
-                    except Exception as e:
-                        st.error(f"Error: {e}")
+                st.markdown("<h3 style='text-align: center;'>How old are you?</h3>
