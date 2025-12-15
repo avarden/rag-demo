@@ -59,7 +59,7 @@ st.markdown("""
         transform: translateY(-1px);
     }
 
-    /* 5. SUGGESTION BUTTONS */
+    /* 5. SUGGESTION BUTTONS (Outline Style) */
     div[data-testid="column"] button {
         background-color: #FFFFFF !important; 
         border: 2px solid #E1EFFF !important; 
@@ -137,6 +137,9 @@ if "age_context" not in st.session_state:
     st.session_state.age_context = None
 if "messages" not in st.session_state:
     st.session_state.messages = []
+# NEW: Store dynamic suggestions
+if "current_suggestions" not in st.session_state:
+    st.session_state.current_suggestions = []
 
 # 2. LOAD BRAIN
 @st.cache_resource
@@ -150,7 +153,7 @@ def load_rag_pipeline():
     retriever = vectorstore.as_retriever()
     llm = ChatGoogleGenerativeAI(model="models/gemini-2.5-flash", temperature=0)
     
-    # --- UPDATED PROMPT: "PLAIN LANGUAGE" LOGIC ADDED ---
+    # --- UPDATED PROMPT: ADDED "SUGGESTIONS" LOGIC ---
     system_prompt = (
         "You are KAI (Kind AI), a guide for everyday life. "
         "Your core philosophy:\n"
@@ -163,12 +166,13 @@ def load_rag_pipeline():
         "IF SPEAKING TO AN 'Autistic Adult':\n"
         "1. Use simple, short sentences.\n"
         "2. Use literal language only (NO metaphors, idioms, or sarcasm).\n"
-        "3. If giving instructions, use a numbered list with a MAXIMUM of 7 steps.\n"
-        "4. End with a clear, direct choice question, e.g., 'Would you like to add anything or see [next topic] next?'\n\n"
+        "3. If giving instructions, use a numbered list with a MAXIMUM of 7 steps.\n\n"
         "IF SPEAKING TO A 'Caregiver':\n"
-        "1. Be supportive, empathetic, and detailed.\n"
-        "2. You may use longer explanations and standard conversational language.\n\n"
-        "GENERAL RULE: Prioritize resources that are available in {location} if found in the context.\n\n"
+        "1. Be supportive, empathetic, and detailed.\n\n"
+        "--- FOLLOW-UP INSTRUCTION (CRITICAL) ---\n"
+        "At the very end of your response, on a new line, provide exactly 3 short, relevant follow-up options for the user to click.\n"
+        "Format them strictly like this:\n"
+        "SUGGESTIONS: Option 1 | Option 2 | Option 3\n\n"
         "RETRIEVED KNOWLEDGE:\n"
         "{context}"
     )
@@ -179,7 +183,7 @@ def load_rag_pipeline():
 
 rag_chain = load_rag_pipeline()
 
-# --- HELPER: GET LOCATIONS FROM JSON ---
+# --- HELPER: GET LOCATIONS ---
 def get_locations_from_file():
     locations = set()
     if os.path.exists("resources.json"):
@@ -199,9 +203,14 @@ def get_locations_from_file():
     sorted_locs.append("Other / International")
     return sorted_locs
 
-# --- HELPER: GENERATE RESPONSE ---
+# --- HELPER: GENERATE RESPONSE & PARSE SUGGESTIONS ---
 def generate_response(prompt_text):
+    # 1. Add User Message
     st.session_state.messages.append({"role": "user", "content": prompt_text})
+    
+    # 2. Clear previous suggestions immediately
+    st.session_state.current_suggestions = []
+    
     if rag_chain:
         with st.chat_message("assistant"):
             with st.spinner("Thinking gently..."):
@@ -212,9 +221,45 @@ def generate_response(prompt_text):
                         "location": st.session_state.user_location, 
                         "age": str(st.session_state.age_context)
                     })
-                    answer = response["answer"]
+                    raw_answer = response["answer"]
                     source_documents = response["context"]
-                    st.session_state.messages.append({"role": "assistant", "content": answer, "sources": source_documents})
+                    
+                    # --- PARSING LOGIC ---
+                    if "SUGGESTIONS:" in raw_answer:
+                        parts = raw_answer.split("SUGGESTIONS:")
+                        clean_answer = parts[0].strip()
+                        suggestions_text = parts[1].strip()
+                        
+                        # Split by pipe '|' and clean up
+                        new_suggestions = [s.strip() for s in suggestions_text.split("|")]
+                        st.session_state.current_suggestions = new_suggestions
+                    else:
+                        clean_answer = raw_answer
+                        st.session_state.current_suggestions = []
+                    
+                    # Display Answer
+                    st.markdown(clean_answer)
+                    
+                    # Display Sources
+                    if source_documents:
+                         with st.expander("📚 Helpful Resources"):
+                            unique_sources = set()
+                            for doc in source_documents:
+                                name = doc.metadata.get("source", "Unknown Resource")
+                                url = doc.metadata.get("url", "")
+                                if url and url != "N/A":
+                                    unique_sources.add(f"[{name}]({url})")
+                                else:
+                                    unique_sources.add(name)
+                            if unique_sources:
+                                for source in unique_sources:
+                                    st.markdown(f"- {source}")
+                            else:
+                                st.markdown("_No specific resources cited._")
+                                
+                    # Save to history (clean version)
+                    st.session_state.messages.append({"role": "assistant", "content": clean_answer, "sources": source_documents})
+                    
                 except Exception as e:
                     st.error(f"Error: {e}")
 
@@ -245,7 +290,7 @@ if not st.session_state.intro_complete:
             st.session_state.intro_complete = True
             st.rerun()
 
-# --- 4. ONBOARDING (Updated Flow) ---
+# --- 4. ONBOARDING ---
 elif not st.session_state.onboarding_complete:
     c1, c2, c3 = st.columns([1, 2, 1])
     with c2:
@@ -268,7 +313,6 @@ elif not st.session_state.onboarding_complete:
         # STEP 2: LOCATION
         elif st.session_state.user_location is None:
             st.markdown("<h3 style='text-align: center;'>Where are you located?</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center; opacity: 0.8;'>This helps us suggest local resources.</p>", unsafe_allow_html=True)
             location_options = get_locations_from_file()
             selected_loc = st.selectbox("Select Location", location_options, index=None, placeholder="Choose a location...")
             st.write("")
@@ -286,7 +330,6 @@ elif not st.session_state.onboarding_complete:
                 st.markdown("<h3 style='text-align: center;'>How old are you?</h3>", unsafe_allow_html=True)
             else:
                 st.markdown("<h3 style='text-align: center;'>How old is the person you care for?</h3>", unsafe_allow_html=True)
-            
             age_input = st.number_input("Age", min_value=1, max_value=120, value=18, label_visibility="collapsed")
             st.write("")
             if st.button("Start Chat", type="primary", use_container_width=True):
@@ -308,34 +351,23 @@ else:
             st.session_state.clear()
             st.rerun()
 
+    # --- DISPLAY MESSAGES ---
     if not st.session_state.messages:
         st.markdown("## Hello. How can I guide you today?")
-        st.write("")
-        st.markdown("<p style='color: #0E2A3A; opacity: 0.9; font-weight: 600;'>Here are a few ways I can help:</p>", unsafe_allow_html=True)
-        
-        if st.session_state.user_role == "Autistic Adult":
-            suggestions = [
-                "Help me create a calm morning routine.",
-                "How can I explain my sensory needs to friends?",
-                "What are some tips for handling burnout?",
-            ]
-        else:
-            suggestions = [
-                "Suggest sensory-friendly activities for a child.",
-                "How can I support them during a meltdown?",
-                "Help me prepare for an IEP meeting.",
-            ]
-        
-        col1, col2, col3 = st.columns(3)
-        if col1.button(suggestions[0]):
-            generate_response(suggestions[0])
-            st.rerun()
-        if col2.button(suggestions[1]):
-            generate_response(suggestions[1])
-            st.rerun()
-        if col3.button(suggestions[2]):
-            generate_response(suggestions[2])
-            st.rerun()
+        # Set default suggestions if history is empty
+        if not st.session_state.current_suggestions:
+            if st.session_state.user_role == "Autistic Adult":
+                st.session_state.current_suggestions = [
+                    "Help me create a calm morning routine.",
+                    "How can I explain my sensory needs?",
+                    "What are some tips for burnout?",
+                ]
+            else:
+                st.session_state.current_suggestions = [
+                    "Suggest sensory-friendly activities.",
+                    "How can I support them during a meltdown?",
+                    "Help me prepare for an IEP meeting.",
+                ]
 
     if rag_chain is None:
         st.error("❌ Database missing. Please check your setup.")
@@ -359,6 +391,20 @@ else:
                             st.markdown(f"- {source}")
                     else:
                         st.markdown("_No specific resources cited._")
+
+    # --- DYNAMIC SUGGESTION BUTTONS ---
+    # We display these just above the chat input
+    if st.session_state.current_suggestions:
+        st.write("")
+        st.markdown("<p style='color: #0E2A3A; opacity: 0.9; font-weight: 600;'>Suggested next steps:</p>", unsafe_allow_html=True)
+        
+        # Determine columns (handle 1, 2, or 3 suggestions safely)
+        cols = st.columns(len(st.session_state.current_suggestions))
+        
+        for i, suggestion in enumerate(st.session_state.current_suggestions):
+            if cols[i].button(suggestion, key=f"sugg_{i}"):
+                generate_response(suggestion)
+                st.rerun()
 
     if prompt := st.chat_input("Ask about routines, resources, or support..."):
         generate_response(prompt)
