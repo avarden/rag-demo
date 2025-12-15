@@ -18,25 +18,39 @@ st.set_page_config(page_title="KAI: Kind AI", page_icon="kai_logo.png", layout="
 
 st.markdown("""
     <style>
-    /* 1. MAIN BACKGROUND */
+    /* 1. GLOBAL BACKGROUNDS */
+    /* Force the main app and all containers to be white */
     .stApp {
         background-color: #FFFFFF;
     }
     
-    /* 2. TEXT STYLING (Global) */
+    /* 2. REMOVE BLACK BARS (Header & Footer) */
+    /* This targets the top header bar */
+    header {
+        background-color: #FFFFFF !important;
+    }
+    /* This targets the bottom footer/input container area */
+    .stBottom {
+        background-color: #FFFFFF !important;
+    }
+    /* Hide the 'Manage App' button usually in the footer */
+    footer {
+        display: none !important;
+    }
+    
+    /* 3. TEXT STYLING */
     h1, h2, h3, h4, p, li, .stMarkdown, .stCaption {
         color: #4A7A94 !important;
         font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
     }
     
-    /* 3. SIDEBAR STYLING */
+    /* 4. SIDEBAR STYLING */
     section[data-testid="stSidebar"] {
-        background-color: #F0F6F8; /* Very light blue-grey */
+        background-color: #F0F6F8;
         border-right: 1px solid #E1EFFF;
     }
     
-    /* 4. BUTTON STYLING */
-    /* Primary Action Buttons */
+    /* 5. BUTTON STYLING */
     div.stButton > button:first-child {
         background-color: #8ABCCE !important; 
         color: white !important;
@@ -54,15 +68,18 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(0,0,0,0.15);
     }
     
-    /* 5. CHAT INTERFACE STYLING */
-    /* Chat Input Box */
+    /* 6. CHAT INPUT STYLING */
+    /* Make the input box blend in */
+    .stChatInput {
+        padding-bottom: 20px;
+    }
     .stChatInput textarea {
         background-color: #F7FBFC !important;
         color: #4A7A94 !important;
         border: 1px solid #8ABCCE !important;
     }
     
-    /* 6. LIST STYLING FOR INTRO */
+    /* 7. LIST STYLING */
     .kai-list {
         font-size: 1.1rem;
         line-height: 1.8;
@@ -74,9 +91,8 @@ st.markdown("""
         color: #2E5E74;
     }
     
-    /* Hide the default Streamlit top menu/footer for cleaner look */
+    /* Hide default hamburger menu */
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -129,25 +145,20 @@ def load_rag_pipeline():
 
 rag_chain = load_rag_pipeline()
 
-# --- 3. INTRO SCREEN (Responsive Layout) ---
+# --- 3. INTRO SCREEN ---
 if not st.session_state.intro_complete:
-    # Spacer to push content down slightly on large screens
     st.write("") 
     st.write("")
 
-    # Using Columns to fix "Negative Space"
-    # On mobile, these stack. On desktop, they sit side-by-side.
     col1, col_spacer, col2 = st.columns([1, 0.2, 1.5])
     
     with col1:
-        # LOGO SIDE
         try:
             st.image("kai_logo.png", use_container_width=True)
         except:
             st.header("🌿 KAI")
             
     with col2:
-        # TEXT SIDE (Left Aligned for cleaner read)
         st.markdown("<h1 style='text-align: left; margin-bottom: 0;'>KAI: Kind AI</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: left; margin-top: 0; font-weight: 400;'>A guide for everyday life.</h3>", unsafe_allow_html=True)
         
@@ -159,17 +170,15 @@ if not st.session_state.intro_complete:
         </div>
         """, unsafe_allow_html=True)
         
-        st.write("") # Small gap
+        st.write("") 
         st.write("") 
         
-        # Button aligned with text
         if st.button("Begin your journey", type="primary"):
             st.session_state.intro_complete = True
             st.rerun()
 
-# --- 4. ONBOARDING (Centered & Clean) ---
+# --- 4. ONBOARDING ---
 elif not st.session_state.onboarding_complete:
-    # Use empty columns to center the content on wide screens
     c1, c2, c3 = st.columns([1, 2, 1])
     
     with c2:
@@ -178,7 +187,6 @@ elif not st.session_state.onboarding_complete:
         st.write("") 
 
         if st.session_state.user_role is None:
-            # Side by side buttons for roles
             b1, b2 = st.columns(2)
             with b1:
                 if st.button("I am an Autistic Adult", use_container_width=True):
@@ -189,7 +197,6 @@ elif not st.session_state.onboarding_complete:
                     st.session_state.user_role = "Caregiver"
                     st.rerun()
         else:
-            # Age input
             role = st.session_state.user_role
             if role == "Autistic Adult":
                 st.markdown("<h3 style='text-align: center;'>How old are you?</h3>", unsafe_allow_html=True)
@@ -206,9 +213,7 @@ elif not st.session_state.onboarding_complete:
 
 # --- 5. MAIN CHAT INTERFACE ---
 else:
-    # Sidebar
     with st.sidebar:
-        # Mini Logo in Sidebar
         try:
             st.image("kai_logo.png", width=80)
         except:
@@ -221,21 +226,20 @@ else:
             st.session_state.clear()
             st.rerun()
 
-    # Main Chat Area - Header
-    # We remove the big header to give more room to the chat
+    # REMOVED: The greeting check loop that had the Wave Emoji
+    # Replaced with a simple persistent greeting if history is empty
     if not st.session_state.messages:
-        st.markdown("## 👋 Hello. How can I guide you today?")
+        # Simple, Clean Greeting
+        st.markdown("## Hello. How can I guide you today?")
 
     if rag_chain is None:
         st.error("❌ Database missing. Please check your setup.")
         st.stop()
 
-    # Display Messages
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # Input Area
     if prompt := st.chat_input("Ask about routines, resources, or support..."):
         st.chat_message("user").markdown(prompt)
         st.session_state.messages.append({"role": "user", "content": prompt})
@@ -254,7 +258,6 @@ else:
 
                         st.markdown(answer)
                         
-                        # Sources
                         with st.expander("📚 Helpful Resources"):
                             unique_sources = set()
                             for doc in source_documents:
